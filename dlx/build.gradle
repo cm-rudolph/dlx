@@ -1,0 +1,100 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'signing'
+
+    id 'idea'
+}
+
+group 'de.famiru.dlx'
+version '0.5.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+idea {
+    module {
+        downloadJavadoc = true
+        downloadSources = true
+    }
+}
+
+dependencies {
+    implementation "org.apache.logging.log4j:log4j-api:2.24.1"
+    testImplementation "org.apache.logging.log4j:log4j-core:2.24.1"
+
+    testImplementation "org.junit.jupiter:junit-jupiter:5.11.2"
+    testImplementation "org.assertj:assertj-core:3.26.3"
+
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(11)
+    }
+
+    withJavadocJar()
+    withSourcesJar()
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId = 'dlx'
+            from components.java
+            pom {
+                name = 'DLX Library'
+                description = 'Library that implements Donald E. Knuth\'s algorithm DLX'
+                url = 'https://github.com/cm-rudolph/dlx'
+                licenses {
+                    license {
+                        name = 'MIT License'
+                        url = 'https://opensource.org/license/mit'
+                    }
+                }
+                developers {
+                    developer {
+                        id = 'crudolph'
+                        name = 'Christian Rudolph'
+                        email = 'crudolph@famiru.de'
+                        url = 'https://github.com/cm-rudolph'
+                    }
+                }
+                scm {
+                    connection = 'scm:git:git://github.com/cm-rudolph/dlx.git'
+                    developerConnection = 'scm:git:ssh://git@github.com:cm-rudolph/dlx.git'
+                    url = 'https://github.com/cm-rudolph/dlx'
+                }
+                issueManagement {
+                    system = 'GitHub'
+                    url = 'https://github.com/cm-rudolph/dlx/issues'
+                }
+            }
+        }
+    }
+    repositories {
+        maven {
+            // As there is currently no official gradle plugin to publish to sonatype central,
+            // use a local repository in build/repos/releases, zip the files manually and upload to sonatype central
+            def releasesRepoUrl = layout.buildDirectory.dir('repos/releases')
+            def snapshotsRepoUrl = layout.buildDirectory.dir('repos/snapshots')
+            url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
+        }
+    }
+}
+
+signing {
+    sign publishing.publications.mavenJava
+}
+
+javadoc {
+    if(JavaVersion.current().isJava9Compatible()) {
+        options.addBooleanOption('html5', true)
+    }
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
