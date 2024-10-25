@@ -4,6 +4,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -23,8 +24,8 @@ public class Dlx<T> {
     private final CountDownLatch solvedLatch = new CountDownLatch(1);
     private final List<List<T>> solutions = new ArrayList<>();
     private int solutionsFound = 0;
-    private long updates = 0;
-    private long visitedNodes = 0;
+    private long[] updates = new long[0];
+    private long[] visitedNodes = new long[0];
 
     public Dlx(int maxNumberOfSolutionsToStore, boolean countAllSolutions, int statusLogStepWidth) {
         this.maxNumberOfSolutionsToStore = maxNumberOfSolutionsToStore;
@@ -73,18 +74,6 @@ public class Dlx<T> {
         }
     }
 
-    public int getNumberOfSolutionsFound() {
-        return solutionsFound;
-    }
-
-    public long getNumberOfUpdates() {
-        return updates;
-    }
-
-    public long getVisitedNodes() {
-        return visitedNodes;
-    }
-
     private void ensureColumnHeadSize(int minSize) {
         while (columnHeads.size() < minSize) {
             MatrixEntry<T> columnHead = new MatrixEntry<>();
@@ -104,8 +93,7 @@ public class Dlx<T> {
             try {
                 LOGGER.info("Solving using DLX...");
                 search(0);
-                LOGGER.info("Found {} solutions doing {} updates and visiting {} nodes.",
-                        solutionsFound, updates, visitedNodes);
+                LOGGER.info("Found {} solutions", solutionsFound);
             } finally {
                 state.set(State.SOLVED);
                 solvedLatch.countDown();
@@ -124,18 +112,19 @@ public class Dlx<T> {
 
     private boolean search(int k) {
         if (head.getRight() == head) {
-            doSolutionBookkeeping();
-            return !(countAllSolutions || solutionsFound < maxNumberOfSolutionsToStore);
+            return doSolutionBookkeeping();
         }
+        ensureStatsArraySize(k + 1);
+
         MatrixEntry<T> c = selectNextColumn();
-        updates += c.coverColumn();
+        updates[k] += c.coverColumn();
         MatrixEntry<T> r = c.getLower();
         while (r != c) {
-            visitedNodes++;
+            visitedNodes[k]++;
             solution.add(r);
             MatrixEntry<T> j = r.getRight();
             while (j != r) {
-                updates += j.coverColumn();
+                updates[k] += j.coverColumn();
                 j = j.getRight();
             }
             if (search(k + 1)) return true;
@@ -152,7 +141,19 @@ public class Dlx<T> {
         return false;
     }
 
-    private void doSolutionBookkeeping() {
+    private void ensureStatsArraySize(int size) {
+        if (updates.length < size) {
+            long[] newUpdates = new long[size];
+            System.arraycopy(updates, 0, newUpdates, 0, updates.length);
+            updates = newUpdates;
+
+            long[] newVisitedNodes = new long[size];
+            System.arraycopy(visitedNodes, 0, newVisitedNodes, 0, visitedNodes.length);
+            visitedNodes = newVisitedNodes;
+        }
+    }
+
+    protected boolean doSolutionBookkeeping() {
         if (solutionsFound < maxNumberOfSolutionsToStore) {
             solutions.add(solution.stream()
                     .map(MatrixEntry::getData)
@@ -160,9 +161,9 @@ public class Dlx<T> {
         }
         solutionsFound++;
         if (solutionsFound % statusLogStepWidth == 0) {
-            LOGGER.info("Found {} solutions doing {} updates and visiting {} nodes so far.",
-                    solutionsFound, updates, visitedNodes);
+            LOGGER.info("Found {} solutions so far.", solutionsFound);
         }
+        return !(countAllSolutions || solutionsFound < maxNumberOfSolutionsToStore);
     }
 
     private MatrixEntry<T> selectNextColumn() {
@@ -177,6 +178,14 @@ public class Dlx<T> {
             c = c.getRight();
         }
         return bestMatch;
+    }
+
+    public Stats getStats() {
+        return new Stats(solutionsFound, mapToList(updates), mapToList(visitedNodes));
+    }
+
+    private List<Long> mapToList(long[] array) {
+        return Arrays.stream(array).boxed().toList();
     }
 
     private enum State {
