@@ -92,7 +92,7 @@ public class Dlx<T> {
         if (state.compareAndSet(State.INITIALIZING, State.SOLVING)) {
             try {
                 LOGGER.info("Solving using DLX...");
-                search(0);
+                search();
                 LOGGER.info("Found {} solutions", solutionsFound);
             } finally {
                 state.set(State.SOLVED);
@@ -110,24 +110,24 @@ public class Dlx<T> {
         return Collections.unmodifiableList(solutions);
     }
 
-    private boolean search(int k) {
+    private boolean search() {
         if (head.getRight() == head) {
             return doSolutionBookkeeping();
         }
-        ensureStatsArraySize(k + 1);
+        //ensureStatsArraySize(k + 1);
 
         MatrixEntry<T> c = selectNextColumn();
-        updates[k] += c.coverColumn();
+        /*updates[k] += */c.coverColumn();
         MatrixEntry<T> r = c.getLower();
         while (r != c) {
-            visitedNodes[k]++;
+            //visitedNodes[k]++;
             solution.add(r);
             MatrixEntry<T> j = r.getRight();
             while (j != r) {
-                updates[k] += j.coverColumn();
+                /*updates[k] += */j.coverColumn();
                 j = j.getRight();
             }
-            if (search(k + 1)) return true;
+            if (search()) return true;
             /*r = */solution.remove(solution.size() - 1);
             //c = r.getColumnHeader();
             j = r.getLeft();

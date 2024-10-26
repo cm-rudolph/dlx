@@ -74,15 +74,15 @@ class MatrixEntry<T> {
         return Objects.requireNonNullElse(data, "Head").toString();
     }
 
-    int coverColumn() {
-        int updates = 1;
+    void coverColumn() {
+        //int updates = 1;
         columnHead.right.left = columnHead.left;
         columnHead.left.right = columnHead.right;
         MatrixEntry<T> i = columnHead.lower;
         while (i != columnHead) {
             MatrixEntry<T> j = i.right;
             while (j != i) {
-                updates++;
+                //updates++;
                 j.lower.upper = j.upper;
                 j.upper.lower = j.lower;
                 j.columnHead.rowCount--;
@@ -90,7 +90,7 @@ class MatrixEntry<T> {
             }
             i = i.lower;
         }
-        return updates;
+        //return updates;
     }
 
     void uncoverColumn() {
