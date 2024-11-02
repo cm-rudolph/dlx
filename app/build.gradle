@@ -1,0 +1,34 @@
+plugins {
+    id 'application'
+    id 'idea'
+}
+
+group 'de.famiru.dlx'
+version '1.0-SNAPSHOT'
+
+idea {
+    module {
+        downloadJavadoc = true
+        downloadSources = true
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation project(':dlx')
+    implementation "org.apache.logging.log4j:log4j-api:2.24.1"
+    runtimeOnly "org.apache.logging.log4j:log4j-core:2.24.1"
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+application {
+    mainClass = 'de.famiru.ctpuzzle.App'
+}
