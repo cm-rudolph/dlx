@@ -23,6 +23,8 @@ public class Dlx<T> {
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZING);
     private final CountDownLatch solvedLatch = new CountDownLatch(1);
     private final List<List<T>> solutions = new ArrayList<>();
+    private int numberOfChoices = 0;
+    private int numberOfElements = 0;
     private int solutionsFound = 0;
     private long[] updates = new long[0];
     private long[] visitedNodes = new long[0];
@@ -44,6 +46,7 @@ public class Dlx<T> {
      *                      would be described by a list of {@code 0, 3}.
      */
     public void addChoice(T choiceData, List<Integer> columnIndices) {
+        checkBrokenState();
         if (state.get() != State.INITIALIZING) {
             throw new IllegalStateException("solve() has already been called.");
         }
@@ -56,6 +59,7 @@ public class Dlx<T> {
         int lastIdx = -1;
         for (Integer columnIndex : columnIndices) {
             if (lastIdx >= columnIndex) {
+                markBroken();
                 throw new IllegalArgumentException("Column indices must be >= 0 and strictly increasing.");
             }
             lastIdx = columnIndex;
@@ -69,7 +73,10 @@ public class Dlx<T> {
                 firstRowElement = element;
             }
         }
+        numberOfChoices++;
+        numberOfElements += columnIndices.size();
         if (state.get() != State.INITIALIZING) {
+            markBroken();
             throw new IllegalStateException("solve() has already been called while adding an additional choice.");
         }
     }
@@ -89,13 +96,14 @@ public class Dlx<T> {
      * @return All solutions up until {@code maxNumberOfSolutionsToStore} that have been found.
      */
     public List<List<T>> solve() {
+        checkBrokenState();
         if (state.compareAndSet(State.INITIALIZING, State.SOLVING)) {
             try {
                 LOGGER.info("Solving using DLX...");
                 search(0);
                 LOGGER.info("Found {} solutions", solutionsFound);
             } finally {
-                state.set(State.SOLVED);
+                state.compareAndSet(State.SOLVING, State.SOLVED);
                 solvedLatch.countDown();
             }
         }
@@ -141,6 +149,19 @@ public class Dlx<T> {
         return false;
     }
 
+    protected boolean doSolutionBookkeeping() {
+        if (solutionsFound < maxNumberOfSolutionsToStore) {
+            solutions.add(solution.stream()
+                    .map(MatrixEntry::getData)
+                    .collect(Collectors.toList()));
+        }
+        solutionsFound++;
+        if (solutionsFound % statusLogStepWidth == 0) {
+            LOGGER.info("Found {} solutions so far.", solutionsFound);
+        }
+        return !(countAllSolutions || solutionsFound < maxNumberOfSolutionsToStore);
+    }
+
     private void ensureStatsArraySize(int size) {
         if (updates.length < size) {
             long[] newUpdates = new long[size];
@@ -153,17 +174,15 @@ public class Dlx<T> {
         }
     }
 
-    protected boolean doSolutionBookkeeping() {
-        if (solutionsFound < maxNumberOfSolutionsToStore) {
-            solutions.add(solution.stream()
-                    .map(MatrixEntry::getData)
-                    .collect(Collectors.toList()));
+    private void markBroken() {
+        state.set(State.BROKEN);
+        solvedLatch.countDown();
+    }
+
+    private void checkBrokenState() {
+        if (state.get() == State.BROKEN) {
+            throw new IllegalStateException("This Dlx instance is broken due to invalid usage.");
         }
-        solutionsFound++;
-        if (solutionsFound % statusLogStepWidth == 0) {
-            LOGGER.info("Found {} solutions so far.", solutionsFound);
-        }
-        return !(countAllSolutions || solutionsFound < maxNumberOfSolutionsToStore);
     }
 
     private MatrixEntry<T> selectNextColumn() {
@@ -181,7 +200,10 @@ public class Dlx<T> {
     }
 
     public Stats getStats() {
-        return new Stats(solutionsFound, mapToList(updates), mapToList(visitedNodes));
+        checkBrokenState();
+        return new Stats(numberOfChoices, columnHeads.size(), numberOfElements,
+                solutionsFound, mapToList(updates), mapToList(visitedNodes)
+        );
     }
 
     private List<Long> mapToList(long[] array) {
@@ -189,6 +211,6 @@ public class Dlx<T> {
     }
 
     private enum State {
-        INITIALIZING, SOLVING, SOLVED
+        INITIALIZING, SOLVING, SOLVED, BROKEN
     }
 }
