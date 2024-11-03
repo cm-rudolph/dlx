@@ -23,44 +23,64 @@ public class Dlx<T> {
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZING);
     private final CountDownLatch solvedLatch = new CountDownLatch(1);
     private final List<List<T>> solutions = new ArrayList<>();
+    // fields for statistics
     private int numberOfChoices = 0;
     private int numberOfElements = 0;
     private int solutionsFound = 0;
     private long[] updates = new long[0];
     private long[] visitedNodes = new long[0];
 
-    public Dlx(int maxNumberOfSolutionsToStore, boolean countAllSolutions, int statusLogStepWidth) {
+    /**
+     * Create an empty instance of a (generalized) exact cover problem to be solved using Algorithm DLX. Insert choices
+     * using {@link #addChoice(Object, List)} before solving it using {@link #solve()}.
+     *
+     * @param numberOfPrimaryConstraints   the number of constraints that must be fulfilled
+     * @param numberOfSecondaryConstraints the number of optional constraints that must be fulfilled at most once
+     * @param maxNumberOfSolutionsToStore  the maximum number of concrete solutions that should be returned by
+     *                                     {@link #solve()}
+     * @param countAllSolutions            whether to stop after {@code maxNumberOfSolutionsToStore} or to count all
+     *                                     possible solutions. The result can be retrieved using {@link #getStats()}
+     * @param statusLogStepWidth           print an informational log line after {@code statusLogStepWidth} solutions
+     *                                     have been found
+     */
+    public Dlx(int numberOfPrimaryConstraints, int numberOfSecondaryConstraints, int maxNumberOfSolutionsToStore,
+               boolean countAllSolutions, int statusLogStepWidth) {
         this.maxNumberOfSolutionsToStore = maxNumberOfSolutionsToStore;
         this.countAllSolutions = countAllSolutions;
         this.statusLogStepWidth = statusLogStepWidth;
         head = new MatrixEntry<>();
-        columnHeads = new ArrayList<>();
+        columnHeads = new ArrayList<>(numberOfPrimaryConstraints + numberOfSecondaryConstraints);
         solution = new ArrayList<>();
+        createColumnHeads(numberOfPrimaryConstraints, numberOfSecondaryConstraints);
     }
 
     /**
      * Add a new choice (row) to the exact cover matrix.
      *
-     * @param choiceData    the data that describes the choice
-     * @param columnIndices strictly increasing list of column indices that are set to 1. A row of {@code 1 0 0 1 0}
-     *                      would be described by a list of {@code 0, 3}.
+     * @param choiceData        the data that describes the choice. It gets returned by {@link #solve()}, if this choice
+     *                          is part of an actual solution.
+     * @param constraintIndices strictly increasing list of constraint (column) indices that are set to 1. A row of
+     *                          {@code 1 0 0 1 0} would be described by a list of {@code 0, 3}.
      */
-    public void addChoice(T choiceData, List<Integer> columnIndices) {
+    public void addChoice(T choiceData, List<Integer> constraintIndices) {
         checkBrokenState();
         if (state.get() != State.INITIALIZING) {
             throw new IllegalStateException("solve() has already been called.");
         }
-        if (columnIndices == null || columnIndices.isEmpty()) {
+        if (constraintIndices == null || constraintIndices.isEmpty()) {
             return;
         }
 
-        ensureColumnHeadSize(columnIndices.get(columnIndices.size() - 1) + 1);
         MatrixEntry<T> firstRowElement = null;
         int lastIdx = -1;
-        for (Integer columnIndex : columnIndices) {
+        for (int columnIndex : constraintIndices) {
             if (lastIdx >= columnIndex) {
                 markBroken();
-                throw new IllegalArgumentException("Column indices must be >= 0 and strictly increasing.");
+                throw new IllegalArgumentException("Constraint indices must be >= 0 and strictly increasing.");
+            }
+            if (columnIndex >= columnHeads.size()) {
+                markBroken();
+                throw new IllegalArgumentException("Constraint indices must be < " + columnHeads.size() + ".");
             }
             lastIdx = columnIndex;
 
@@ -74,18 +94,20 @@ public class Dlx<T> {
             }
         }
         numberOfChoices++;
-        numberOfElements += columnIndices.size();
+        numberOfElements += constraintIndices.size();
         if (state.get() != State.INITIALIZING) {
             markBroken();
             throw new IllegalStateException("solve() has already been called while adding an additional choice.");
         }
     }
 
-    private void ensureColumnHeadSize(int minSize) {
-        while (columnHeads.size() < minSize) {
+    private void createColumnHeads(int primaryConstraints, int secondaryConstraints) {
+        for (int i = 0; i < primaryConstraints + secondaryConstraints; i++) {
             MatrixEntry<T> columnHead = new MatrixEntry<>();
             columnHeads.add(columnHead);
-            head.insertBefore(columnHead);
+            if (i < primaryConstraints) {
+                head.insertBefore(columnHead);
+            }
         }
     }
 
@@ -114,6 +136,8 @@ public class Dlx<T> {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
+
+        checkBrokenState();
 
         return Collections.unmodifiableList(solutions);
     }
