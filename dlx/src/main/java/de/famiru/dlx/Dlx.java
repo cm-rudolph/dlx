@@ -3,13 +3,11 @@ package de.famiru.dlx;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class Dlx<T> {
     private static final Logger LOGGER = LogManager.getLogger(Dlx.class);
@@ -45,13 +43,40 @@ public class Dlx<T> {
      */
     public Dlx(int numberOfPrimaryConstraints, int numberOfSecondaryConstraints, int maxNumberOfSolutionsToStore,
                boolean countAllSolutions, int statusLogStepWidth) {
+        this(numberOfPrimaryConstraints + numberOfSecondaryConstraints,
+                generateSequence(numberOfPrimaryConstraints, numberOfSecondaryConstraints),
+                maxNumberOfSolutionsToStore, countAllSolutions, statusLogStepWidth);
+    }
+
+    /**
+     * Create an empty instance of a (generalized) exact cover problem to be solved using Algorithm DLX. Insert choices
+     * using {@link #addChoice(Object, List)} before solving it using {@link #solve()}.
+     *
+     * @param numberOfConstraints           the total number of constraints that must be fulfilled including optional
+     *                                      constraints
+     * @param indicesOfSecondaryConstraints the indices of optional constraints that must be fulfilled at most once
+     * @param maxNumberOfSolutionsToStore   the maximum number of concrete solutions that should be returned by
+     *                                      {@link #solve()}
+     * @param countAllSolutions             whether to stop after {@code maxNumberOfSolutionsToStore} or to count all
+     *                                      possible solutions. The result can be retrieved using {@link #getStats()}
+     * @param statusLogStepWidth            print an informational log line after {@code statusLogStepWidth} solutions
+     *                                      have been found
+     */
+    public Dlx(int numberOfConstraints, Collection<Integer> indicesOfSecondaryConstraints,
+               int maxNumberOfSolutionsToStore, boolean countAllSolutions, int statusLogStepWidth) {
         this.maxNumberOfSolutionsToStore = maxNumberOfSolutionsToStore;
         this.countAllSolutions = countAllSolutions;
         this.statusLogStepWidth = statusLogStepWidth;
         head = new MatrixEntry<>();
-        columnHeads = new ArrayList<>(numberOfPrimaryConstraints + numberOfSecondaryConstraints);
+        columnHeads = new ArrayList<>(numberOfConstraints);
         solution = new ArrayList<>();
-        createColumnHeads(numberOfPrimaryConstraints, numberOfSecondaryConstraints);
+        createColumnHeads(numberOfConstraints, indicesOfSecondaryConstraints);
+    }
+
+    private static Set<Integer> generateSequence(int numberOfPrimaryConstraints, int numberOfSecondaryConstraints) {
+        return IntStream.range(numberOfPrimaryConstraints, numberOfSecondaryConstraints + numberOfPrimaryConstraints)
+                .boxed()
+                .collect(Collectors.toSet());
     }
 
     /**
@@ -101,11 +126,11 @@ public class Dlx<T> {
         }
     }
 
-    private void createColumnHeads(int primaryConstraints, int secondaryConstraints) {
-        for (int i = 0; i < primaryConstraints + secondaryConstraints; i++) {
+    private void createColumnHeads(int numberOfConstraints, Collection<Integer> secondaryConstraints) {
+        for (int i = 0; i < numberOfConstraints; i++) {
             MatrixEntry<T> columnHead = new MatrixEntry<>();
             columnHeads.add(columnHead);
-            if (i < primaryConstraints) {
+            if (!secondaryConstraints.contains(i)) {
                 head.insertBefore(columnHead);
             }
         }
@@ -160,7 +185,8 @@ public class Dlx<T> {
                 j = j.getRight();
             }
             if (search(k + 1)) return true;
-            /*r = */solution.remove(solution.size() - 1);
+            /*r = */
+            solution.remove(solution.size() - 1);
             //c = r.getColumnHeader();
             j = r.getLeft();
             while (j != r) {
