@@ -20,13 +20,13 @@ maven:
 <dependency>
     <groupId>de.famiru.dlx</groupId>
     <artifactId>dlx</artifactId>
-    <version>0.6.0</version>
+    <version>0.6.1</version>
 </dependency>
 ```
 
 gradle:
 ```groovy
-implementation "de.famiru.dlx:dlx:0.6.0"
+implementation "de.famiru.dlx:dlx:0.6.1"
 ```
 
 Then create an instance of `Dlx` and add all possible choices (rows) of the exact cover problem. For a matrix like
