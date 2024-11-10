@@ -22,6 +22,7 @@ public class Dlx<T> {
     private final CountDownLatch solvedLatch = new CountDownLatch(1);
     private final List<List<T>> solutions = new ArrayList<>();
     // fields for statistics
+    private final int numberOfSecondaryConstraints;
     private int numberOfChoices = 0;
     private int numberOfElements = 0;
     private int solutionsFound = 0;
@@ -67,6 +68,7 @@ public class Dlx<T> {
         this.maxNumberOfSolutionsToStore = maxNumberOfSolutionsToStore;
         this.countAllSolutions = countAllSolutions;
         this.statusLogStepWidth = statusLogStepWidth;
+        this.numberOfSecondaryConstraints = indicesOfSecondaryConstraints.size();
         head = new MatrixEntry<>();
         columnHeads = new ArrayList<>(numberOfConstraints);
         solution = new ArrayList<>();
@@ -251,8 +253,9 @@ public class Dlx<T> {
 
     public Stats getStats() {
         checkBrokenState();
-        return new Stats(numberOfChoices, columnHeads.size(), numberOfElements,
-                solutionsFound, mapToList(updates), mapToList(visitedNodes)
+        return new Stats(numberOfChoices, columnHeads.size() - numberOfSecondaryConstraints,
+                numberOfSecondaryConstraints, numberOfElements, solutionsFound,
+                mapToList(updates), mapToList(visitedNodes)
         );
     }
 
