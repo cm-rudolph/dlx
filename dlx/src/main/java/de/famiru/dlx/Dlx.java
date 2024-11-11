@@ -257,7 +257,7 @@ public class Dlx<T> {
     }
 
     private List<Long> mapToList(long[] array) {
-        return Arrays.stream(array).boxed().toList();
+        return Arrays.stream(array).boxed().collect(Collectors.toList());
     }
 
     private enum State {

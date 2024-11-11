@@ -71,7 +71,7 @@ class MatrixEntry<T> {
 
     @Override
     public String toString() {
-        return Objects.requireNonNullElse(data, "Head").toString();
+        return data != null ? data.toString() : "Head";
     }
 
     int coverColumn() {

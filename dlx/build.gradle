@@ -7,7 +7,7 @@ plugins {
 }
 
 group 'de.famiru.dlx'
-version '0.6.1'
+version '0.6.1-jdk8-SNAPSHOT'
 
 repositories {
     mavenCentral()
@@ -32,7 +32,7 @@ dependencies {
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+        languageVersion = JavaLanguageVersion.of(8)
     }
 
     withJavadocJar()
