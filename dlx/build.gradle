@@ -7,7 +7,7 @@ plugins {
 }
 
 group 'de.famiru.dlx'
-version '0.6.1-jdk8'
+version '0.7.0-jdk8-SNAPSHOT'
 
 repositories {
     mavenCentral()

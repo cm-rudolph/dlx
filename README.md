@@ -11,6 +11,8 @@ The library is compatible with Java 17 or newer.
 It has a dependency to log4j2-api. If you want logging, provide a log4j2 implementation at runtime. This can be either
 log4j2 or some bridge to another logging framework.
 
+A Java 8 compatible release can be found using the version `0.6.1-jdk8`.
+
 ## Usage
 
 First, include the library as a dependency within your project.
@@ -20,13 +22,13 @@ maven:
 <dependency>
     <groupId>de.famiru.dlx</groupId>
     <artifactId>dlx</artifactId>
-    <version>0.6.0</version>
+    <version>0.6.1</version>
 </dependency>
 ```
 
 gradle:
 ```groovy
-implementation "de.famiru.dlx:dlx:0.6.0"
+implementation "de.famiru.dlx:dlx:0.6.1"
 ```
 
 Then create an instance of `Dlx` and add all possible choices (rows) of the exact cover problem. For a matrix like
