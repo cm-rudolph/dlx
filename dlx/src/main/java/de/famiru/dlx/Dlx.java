@@ -187,8 +187,7 @@ public class Dlx<T> {
                 j = j.getRight();
             }
             if (search(k + 1)) return true;
-            /*r = */
-            solution.remove(solution.size() - 1);
+            /*r = */solution.remove(solution.size() - 1);
             //c = r.getColumnHeader();
             j = r.getLeft();
             while (j != r) {
