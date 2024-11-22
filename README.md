@@ -4,6 +4,15 @@ This project is a simple library to solve generalized
 [exact cover problems](https://en.wikipedia.org/wiki/Exact_cover) using Donald E. Knuth's Algorithm DLX. The algorithm
 was published in [arXiv:cs/0011047](https://arxiv.org/abs/cs/0011047).
 
+## Features
+
+The library supports
+
+* solving exact cover problems like sudoku
+* solving generalized exact cover problems like the N queens problem
+* statistics about the search tree
+* multithreading for larger problems
+
 ## Technical foundation
 
 The library is compatible with Java 17 or newer.
@@ -22,13 +31,13 @@ maven:
 <dependency>
     <groupId>de.famiru.dlx</groupId>
     <artifactId>dlx</artifactId>
-    <version>0.6.1</version>
+    <version>0.7.0</version>
 </dependency>
 ```
 
 gradle:
 ```groovy
-implementation "de.famiru.dlx:dlx:0.6.1"
+implementation "de.famiru.dlx:dlx:0.7.0"
 ```
 
 Then create an instance of `Dlx` and add all possible choices (rows) of the exact cover problem. For a matrix like
@@ -62,9 +71,11 @@ message.
 
 For further information, please have a look into the JavaDocs of `Dlx`.
 
-## Open tasks before 1.0.0
+## Known limitations
 
-* Consider multithreading
+* To improve performance in multithreading, there is no synchronization between threads. Therefore, the solver might run
+  significantly longer than necessary to find the given number of solutions. In addition, it might find much more
+  solutions than requested.
 
 ## License
 
