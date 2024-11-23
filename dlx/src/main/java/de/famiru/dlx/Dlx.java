@@ -4,13 +4,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.*;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 public class Dlx<T> {
     private static final Logger LOGGER = LogManager.getLogger(Dlx.class);
+
+    private final Map<Future<Boolean>, Dlx<T>> forks = new HashMap<>();
+    private final ExecutorService executor;
+    private final int forkingLevel;
 
     private final MatrixEntry<T> head;
     private final List<MatrixEntry<T>> columnHeads;
@@ -29,42 +32,10 @@ public class Dlx<T> {
     private long[] updates = new long[0];
     private long[] visitedNodes = new long[0];
 
-    /**
-     * Create an empty instance of a (generalized) exact cover problem to be solved using Algorithm DLX. Insert choices
-     * using {@link #addChoice(Object, List)} before solving it using {@link #solve()}.
-     *
-     * @param numberOfPrimaryConstraints   the number of constraints that must be fulfilled
-     * @param numberOfSecondaryConstraints the number of optional constraints that must be fulfilled at most once
-     * @param maxNumberOfSolutionsToStore  the maximum number of concrete solutions that should be returned by
-     *                                     {@link #solve()}
-     * @param countAllSolutions            whether to stop after {@code maxNumberOfSolutionsToStore} or to count all
-     *                                     possible solutions. The result can be retrieved using {@link #getStats()}
-     * @param statusLogStepWidth           print an informational log line after {@code statusLogStepWidth} solutions
-     *                                     have been found
-     */
-    public Dlx(int numberOfPrimaryConstraints, int numberOfSecondaryConstraints, int maxNumberOfSolutionsToStore,
-               boolean countAllSolutions, int statusLogStepWidth) {
-        this(numberOfPrimaryConstraints + numberOfSecondaryConstraints,
-                generateSequence(numberOfPrimaryConstraints, numberOfSecondaryConstraints),
-                maxNumberOfSolutionsToStore, countAllSolutions, statusLogStepWidth);
-    }
-
-    /**
-     * Create an empty instance of a (generalized) exact cover problem to be solved using Algorithm DLX. Insert choices
-     * using {@link #addChoice(Object, List)} before solving it using {@link #solve()}.
-     *
-     * @param numberOfConstraints           the total number of constraints that must be fulfilled including optional
-     *                                      constraints
-     * @param indicesOfSecondaryConstraints the indices of optional constraints that must be fulfilled at most once
-     * @param maxNumberOfSolutionsToStore   the maximum number of concrete solutions that should be returned by
-     *                                      {@link #solve()}
-     * @param countAllSolutions             whether to stop after {@code maxNumberOfSolutionsToStore} or to count all
-     *                                      possible solutions. The result can be retrieved using {@link #getStats()}
-     * @param statusLogStepWidth            print an informational log line after {@code statusLogStepWidth} solutions
-     *                                      have been found
-     */
-    public Dlx(int numberOfConstraints, Collection<Integer> indicesOfSecondaryConstraints,
+    Dlx(int numberOfConstraints, Set<Integer> indicesOfSecondaryConstraints, int forkingLevel, int numberOfThreads,
                int maxNumberOfSolutionsToStore, boolean countAllSolutions, int statusLogStepWidth) {
+        this.forkingLevel = numberOfThreads > 1 ? forkingLevel : -1;
+        this.executor = numberOfThreads > 1 ? Executors.newFixedThreadPool(numberOfThreads) : null;
         this.maxNumberOfSolutionsToStore = maxNumberOfSolutionsToStore;
         this.countAllSolutions = countAllSolutions;
         this.statusLogStepWidth = statusLogStepWidth;
@@ -75,10 +46,27 @@ public class Dlx<T> {
         createColumnHeads(numberOfConstraints, indicesOfSecondaryConstraints);
     }
 
-    private static Set<Integer> generateSequence(int numberOfPrimaryConstraints, int numberOfSecondaryConstraints) {
-        return IntStream.range(numberOfPrimaryConstraints, numberOfSecondaryConstraints + numberOfPrimaryConstraints)
-                .boxed()
-                .collect(Collectors.toSet());
+    // internal constructor for forking
+    private Dlx(MatrixEntry<T> head, List<MatrixEntry<T>> solution, int maxNumberOfSolutionsToStore,
+                boolean countAllSolutions, int statusLogStepWidth, int numberOfElements, int solutionsFound) {
+        this.executor = null;
+        this.forkingLevel = -1;
+        this.head = head;
+        this.columnHeads = List.of();
+        this.solution = solution;
+        this.maxNumberOfSolutionsToStore = maxNumberOfSolutionsToStore;
+        this.countAllSolutions = countAllSolutions;
+        this.statusLogStepWidth = statusLogStepWidth;
+        this.numberOfSecondaryConstraints = 0;
+        this.numberOfElements = numberOfElements;
+        this.solutionsFound = solutionsFound;
+    }
+
+    /**
+     * Start constructing a {@code Dlx} instance by using this method.
+     */
+    public static DlxBuilder.DlxConfig builder() {
+        return new DlxBuilder.DlxConfig();
     }
 
     /**
@@ -89,28 +77,13 @@ public class Dlx<T> {
      * @param constraintIndices strictly increasing list of constraint (column) indices that are set to 1. A row of
      *                          {@code 1 0 0 1 0} would be described by a list of {@code 0, 3}.
      */
-    public void addChoice(T choiceData, List<Integer> constraintIndices) {
-        checkBrokenState();
-        if (state.get() != State.INITIALIZING) {
-            throw new IllegalStateException("solve() has already been called.");
-        }
+    void addChoice(T choiceData, List<Integer> constraintIndices) {
         if (constraintIndices == null || constraintIndices.isEmpty()) {
             return;
         }
 
         MatrixEntry<T> firstRowElement = null;
-        int lastIdx = -1;
         for (int columnIndex : constraintIndices) {
-            if (lastIdx >= columnIndex) {
-                markBroken();
-                throw new IllegalArgumentException("Constraint indices must be >= 0 and strictly increasing.");
-            }
-            if (columnIndex >= columnHeads.size()) {
-                markBroken();
-                throw new IllegalArgumentException("Constraint indices must be < " + columnHeads.size() + ".");
-            }
-            lastIdx = columnIndex;
-
             MatrixEntry<T> columnHead = columnHeads.get(columnIndex);
             MatrixEntry<T> element = new MatrixEntry<>(choiceData, columnHead);
             columnHead.insertAbove(element);
@@ -122,13 +95,9 @@ public class Dlx<T> {
         }
         numberOfChoices++;
         numberOfElements += constraintIndices.size();
-        if (state.get() != State.INITIALIZING) {
-            markBroken();
-            throw new IllegalStateException("solve() has already been called while adding an additional choice.");
-        }
     }
 
-    private void createColumnHeads(int numberOfConstraints, Collection<Integer> secondaryConstraints) {
+    private void createColumnHeads(int numberOfConstraints, Set<Integer> secondaryConstraints) {
         for (int i = 0; i < numberOfConstraints; i++) {
             MatrixEntry<T> columnHead = new MatrixEntry<>();
             columnHeads.add(columnHead);
@@ -139,19 +108,33 @@ public class Dlx<T> {
     }
 
     /**
-     * Solves the exact cover problem previously initialized using {@link #addChoice(Object, List)} by executing
+     * Solves the exact cover problem previously initialized using {@link #builder()} by executing
      * Donald E. Knuth's algorithm DLX. Executes only once and stores the result.
      *
      * @return All solutions up until {@code maxNumberOfSolutionsToStore} that have been found.
      */
     public List<List<T>> solve() {
-        checkBrokenState();
         if (state.compareAndSet(State.INITIALIZING, State.SOLVING)) {
             try {
                 LOGGER.info("Solving using DLX...");
                 search(0);
+
+                for (Map.Entry<Future<Boolean>, Dlx<T>> entry : forks.entrySet()) {
+                    Future<Boolean> future = entry.getKey();
+                    try {
+                        future.get();
+                    } catch (InterruptedException | ExecutionException e) {
+                        throw new RuntimeException(e);
+                    }
+                    Dlx<T> fork = entry.getValue();
+                    join(fork);
+                }
+
                 LOGGER.info("Found {} solutions", solutionsFound);
             } finally {
+                if (executor != null) {
+                    executor.shutdown();
+                }
                 state.compareAndSet(State.SOLVING, State.SOLVED);
                 solvedLatch.countDown();
             }
@@ -164,9 +147,40 @@ public class Dlx<T> {
             throw new RuntimeException(e);
         }
 
-        checkBrokenState();
-
         return Collections.unmodifiableList(solutions);
+    }
+
+    private Dlx<T> fork() {
+        HashMap<MatrixEntry<T>, MatrixEntry<T>> mapping = new HashMap<>(numberOfElements);
+        HashSet<MatrixEntry<T>> visited = new HashSet<>(numberOfElements);
+        MatrixEntry<T> headCopy = head.copy(mapping, visited);
+
+        List<MatrixEntry<T>> solutionCopy = new ArrayList<>(solution.size());
+        for (MatrixEntry<T> entry : solution) {
+            entry.copy(mapping, visited);
+            solutionCopy.add(mapping.get(entry));
+        }
+        return new Dlx<>(headCopy, solutionCopy, maxNumberOfSolutionsToStore, countAllSolutions, statusLogStepWidth,
+                numberOfElements, solutionsFound);
+    }
+
+    private void join(Dlx<T> fork) {
+        Stats stats = fork.getStats();
+        List<Long> numberOfUpdates = stats.numberOfUpdates();
+        ensureStatsArraySize(numberOfUpdates.size());
+        for (int i = 0; i < numberOfUpdates.size(); i++) {
+            long updates = numberOfUpdates.get(i);
+            this.updates[i] += updates;
+        }
+
+        List<Long> numberOfVisitedNodes = stats.numberOfVisitedNodes();
+        for (int i = 0; i < numberOfVisitedNodes.size(); i++) {
+            long visitedNodes = numberOfVisitedNodes.get(i);
+            this.visitedNodes[i] += visitedNodes;
+        }
+
+        this.solutions.addAll(fork.solutions);
+        this.solutionsFound += fork.solutionsFound;
     }
 
     private boolean search(int k) {
@@ -178,6 +192,8 @@ public class Dlx<T> {
         MatrixEntry<T> c = selectNextColumn();
         updates[k] += c.coverColumn();
         MatrixEntry<T> r = c.getLower();
+        boolean fork = k == forkingLevel;
+        int solutionsCountCorrection = 0;
         while (r != c) {
             visitedNodes[k]++;
             solution.add(r);
@@ -186,7 +202,14 @@ public class Dlx<T> {
                 updates[k] += j.coverColumn();
                 j = j.getRight();
             }
-            if (search(k + 1)) return true;
+            if (fork) {
+                Dlx<T> forkedDlx = fork();
+                solutionsCountCorrection += solutionsFound;
+                Future<Boolean> future = executor.submit(() -> forkedDlx.search(k + 1));
+                forks.put(future, forkedDlx);
+            } else if (search(k + 1)) {
+                return true;
+            }
             /*r = */solution.remove(solution.size() - 1);
             //c = r.getColumnHeader();
             j = r.getLeft();
@@ -197,6 +220,8 @@ public class Dlx<T> {
             r = r.getLower();
         }
         c.uncoverColumn();
+        solutionsFound -= solutionsCountCorrection;
+
         return false;
     }
 
@@ -225,17 +250,6 @@ public class Dlx<T> {
         }
     }
 
-    private void markBroken() {
-        state.set(State.BROKEN);
-        solvedLatch.countDown();
-    }
-
-    private void checkBrokenState() {
-        if (state.get() == State.BROKEN) {
-            throw new IllegalStateException("This Dlx instance is broken due to invalid usage.");
-        }
-    }
-
     private MatrixEntry<T> selectNextColumn() {
         MatrixEntry<T> c = head.getRight();
         MatrixEntry<T> bestMatch = c;
@@ -250,8 +264,10 @@ public class Dlx<T> {
         return bestMatch;
     }
 
+    /**
+     * Retrieve detailed statistics about the problem, the search tree and the solutions that have been found.
+     */
     public Stats getStats() {
-        checkBrokenState();
         return new Stats(numberOfChoices, columnHeads.size() - numberOfSecondaryConstraints,
                 numberOfSecondaryConstraints, numberOfElements, solutionsFound,
                 mapToList(updates), mapToList(visitedNodes)
@@ -263,6 +279,6 @@ public class Dlx<T> {
     }
 
     private enum State {
-        INITIALIZING, SOLVING, SOLVED, BROKEN
+        INITIALIZING, SOLVING, SOLVED
     }
 }

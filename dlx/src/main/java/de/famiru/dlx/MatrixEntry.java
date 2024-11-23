@@ -1,6 +1,6 @@
 package de.famiru.dlx;
 
-import java.util.Objects;
+import java.util.*;
 
 import static java.util.Objects.requireNonNull;
 
@@ -34,6 +34,56 @@ class MatrixEntry<T> {
         this.data = requireNonNull(data);
     }
 
+    MatrixEntry<T> copy(Map<MatrixEntry<T>, MatrixEntry<T>> mapping, Set<MatrixEntry<T>> visited) {
+        if (visited.contains(this)) {
+            return mapping.get(this);
+        }
+
+        Deque<MatrixEntry<T>> queue = new LinkedList<>();
+        queue.add(this);
+
+        while (!queue.isEmpty()) {
+            MatrixEntry<T> current = queue.remove();
+            MatrixEntry<T> copy;
+            if (current.isColumnHead()) {
+                copy = mapping.computeIfAbsent(current, k -> new MatrixEntry<>());
+            } else {
+                MatrixEntry<T> columnHead = mapping.get(current.columnHead);
+                if (columnHead == null) {
+                    columnHead = new MatrixEntry<>();
+                    mapping.put(current.columnHead, columnHead);
+                    queue.addFirst(columnHead);
+                }
+                copy = new MatrixEntry<>(current.data, columnHead);
+            }
+            mapping.put(current, copy);
+
+            if (visited.add(current.upper)) {
+                queue.add(current.upper);
+            }
+            if (visited.add(current.lower)) {
+                queue.add(current.lower);
+            }
+            if (visited.add(current.right)) {
+                queue.add(current.right);
+            }
+            if (visited.add(current.left)) {
+                queue.add(current.left);
+            }
+        }
+
+        for (Map.Entry<MatrixEntry<T>, MatrixEntry<T>> entry : mapping.entrySet()) {
+            MatrixEntry<T> from = entry.getKey();
+            MatrixEntry<T> to = entry.getValue();
+            to.upper = mapping.get(from.upper);
+            to.lower = mapping.get(from.lower);
+            to.right = mapping.get(from.right);
+            to.left = mapping.get(from.left);
+            to.rowCount = from.rowCount;
+        }
+        return mapping.get(this);
+    }
+
     void insertBefore(MatrixEntry<T> entry) {
         entry.right = this;
         entry.left = left;
@@ -59,6 +109,10 @@ class MatrixEntry<T> {
 
     MatrixEntry<T> getLower() {
         return lower;
+    }
+
+    private boolean isColumnHead() {
+        return columnHead == this;
     }
 
     int getRowCount() {
