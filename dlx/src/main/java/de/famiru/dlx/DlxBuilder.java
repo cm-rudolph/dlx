@@ -1,9 +1,6 @@
 package de.famiru.dlx;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -103,7 +100,7 @@ public class DlxBuilder<T> {
                 throw new IllegalArgumentException("Number of primary constraints must be greater than 0");
             }
             this.numberOfConstraints = numberOfPrimaryConstraints;
-            this.indicesOfSecondaryConstraints = Set.of();
+            this.indicesOfSecondaryConstraints = Collections.emptySet();
             return this;
         }
 
@@ -153,7 +150,7 @@ public class DlxBuilder<T> {
                 }
             }
             this.numberOfConstraints = numberOfConstraints;
-            this.indicesOfSecondaryConstraints = Set.copyOf(indicesOfSecondaryConstraints);
+            this.indicesOfSecondaryConstraints = new HashSet<>(indicesOfSecondaryConstraints);
             return this;
         }
 

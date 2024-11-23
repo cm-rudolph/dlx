@@ -52,7 +52,7 @@ public class Dlx<T> {
         this.executor = null;
         this.forkingLevel = -1;
         this.head = head;
-        this.columnHeads = List.of();
+        this.columnHeads = Collections.emptyList();
         this.solution = solution;
         this.maxNumberOfSolutionsToStore = maxNumberOfSolutionsToStore;
         this.countAllSolutions = countAllSolutions;
