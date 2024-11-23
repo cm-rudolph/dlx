@@ -4,13 +4,14 @@ import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class DlxTest {
     @Test
     void matrixFromFigure3ofPaper_solvedCorrectly() {
-        Dlx<String> dlx = new Dlx<>(7, 0, 10, false, Integer.MAX_VALUE);
+        Dlx<String> dlx = new Dlx<>(7, Set.of(), -1, 1, 10, false, Integer.MAX_VALUE);
         dlx.addChoice("C E F", List.of(2, 4, 5));
         dlx.addChoice("A D G", List.of(0, 3, 6));
         dlx.addChoice("B C F", List.of(1, 2, 5));
@@ -28,7 +29,7 @@ class DlxTest {
 
     @Test
     void matrixWithSecondaryConstraint_constraintNotFulfillable_solvedCorrectly() {
-        Dlx<String> dlx = new Dlx<>(7, 1, 10, false, Integer.MAX_VALUE);
+        Dlx<String> dlx = new Dlx<>(8, Set.of(7), -1, 1, 10, false, Integer.MAX_VALUE);
         dlx.addChoice("C E F", List.of(2, 4, 5));
         dlx.addChoice("A D G H", List.of(0, 3, 6, 7));
         dlx.addChoice("B C F", List.of(1, 2, 5));
@@ -46,7 +47,7 @@ class DlxTest {
 
     @Test
     void matrixWithSecondaryConstraint_constraintFulfillable_solvedCorrectly() {
-        Dlx<String> dlx = new Dlx<>(7, 1, 10, false, Integer.MAX_VALUE);
+        Dlx<String> dlx = new Dlx<>(8, Set.of(7), -1, 1, 10, false, Integer.MAX_VALUE);
         dlx.addChoice("C E F", List.of(2, 4, 5));
         dlx.addChoice("A D G", List.of(0, 3, 6));
         dlx.addChoice("B C F", List.of(1, 2, 5));

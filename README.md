@@ -54,13 +54,16 @@ Then create an instance of `Dlx` and add all possible choices (rows) of the exac
 it might look like that:
 
 ```java
-Dlx<String> dlx = new Dlx<>(7, 0, 1, false, 1);
-dlx.addChoice("C E F", List.of(2, 4, 5));
-dlx.addChoice("A D G", List.of(0, 3, 6));
-dlx.addChoice("B C F", List.of(1, 2, 5));
-dlx.addChoice("A D", List.of(0, 3));
-dlx.addChoice("B G", List.of(1, 6));
-dlx.addChoice("D E G", List.of(3, 4, 6));
+Dlx<String> dlx = Dlx.builder()
+        .numberOfConstraints(7)
+        .<String>createChoiceBuilder()
+        .addChoice("C E F", List.of(2, 4, 5))
+        .addChoice("A D G", List.of(0, 3, 6))
+        .addChoice("B C F", List.of(1, 2, 5))
+        .addChoice("A D", List.of(0, 3))
+        .addChoice("B G", List.of(1, 6))
+        .addChoice("D E G", List.of(3, 4, 6))
+        .build();
 
 List<List<String>> solutions = dlx.solve();
 ```
@@ -69,7 +72,7 @@ Each choice carries some identifying information. `Dlx` is a generic class and t
 type. It gets returned by `Dlx#solve()` and can then be further processed, e.g. for printing some human-readable
 message.
 
-For further information, please have a look into the JavaDocs of `Dlx`.
+For further information, please have a look into the JavaDocs of `Dlx` and `DlxBuilder`.
 
 ## Known limitations
 
