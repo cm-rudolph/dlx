@@ -81,7 +81,9 @@ this library.
 
 * To improve performance in multithreading, there is no synchronization between threads. Therefore, the solver might run
   significantly longer than necessary to find the given number of solutions. In addition, it might find much more
-  solutions than requested.
+  solutions than requested: the limit set by `maxNumberOfSolutionsToStore` applies to each forked search separately.
+  The number of forks equals the number of nodes of the search tree at the forking level, so a deeper forking level
+  weakens the limit.
 
 ## License
 
