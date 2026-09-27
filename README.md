@@ -74,6 +74,9 @@ message.
 
 For further information, please have a look into the JavaDocs of `Dlx` and `DlxBuilder`.
 
+For a complete example application, see [sudoku-dlx](https://github.com/cm-rudolph/sudoku-dlx), a sudoku solver built on
+this library.
+
 ## Known limitations
 
 * To improve performance in multithreading, there is no synchronization between threads. Therefore, the solver might run
